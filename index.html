@@ -5,8 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Top 100 Cryptos</title>
   <style>
-    body {
+    html, body {
       margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100%;
       font-family: Arial, sans-serif;
       background-color: #0f1b0f;
       color: gold;
@@ -34,6 +37,7 @@
       background-color: #145214;
       color: gold;
       margin: 0;
+      font-size: 1.5rem;
     }
 
     .container {
@@ -41,6 +45,8 @@
       flex-wrap: wrap;
       justify-content: center;
       padding: 10px;
+      max-width: 1200px;
+      margin: auto;
     }
 
     .card {
@@ -56,6 +62,7 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      text-align: center;
     }
 
     .card h2 {
@@ -96,7 +103,7 @@
 
     .popup canvas {
       width: 100% !important;
-      max-width: 500px;
+      max-width: 600px;
       height: 300px !important;
       background: white;
       border-radius: 10px;
@@ -116,13 +123,18 @@
     @media(min-width: 768px) {
       .card {
         width: 14%;
+        max-width: none;
+      }
+
+      h1 {
+        font-size: 2rem;
       }
     }
   </style>
 </head>
 <body>
   <div class="progress-bar"></div>
-  <h1>CRYPTO MARKET ANALYSIS</h1>
+  <h1>Top 100 Cryptocurrencies</h1>
   <div class="container" id="crypto-container"></div>
 
   <!-- Chart popup -->
@@ -146,23 +158,53 @@
     const ctxVolume = document.getElementById("volume-chart").getContext("2d");
 
     let chartInstance, volumeInstance;
+    let lastPrices = new Map();
 
     async function fetchCryptos() {
-      const res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=100&page=1");
-      const data = await res.json();
-      cryptoContainer.innerHTML = "";
+      try {
+        const res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=100&page=1");
+        const data = await res.json();
+        
+        if (cryptoContainer.children.length === 0) {
+          // First load: Create cards
+          data.forEach(coin => {
+            lastPrices.set(coin.id, coin.current_price);
 
-      data.forEach(coin => {
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <h2>${coin.name}</h2>
-          <div class="price">💵 $${coin.current_price}</div>
-          <button onclick="showChart('${coin.id}', '${coin.name}')">📈 Graph</button>
-          <button onclick="showVolume('${coin.id}', '${coin.name}')">📊 Volume</button>
-        `;
-        cryptoContainer.appendChild(card);
-      });
+            const card = document.createElement("div");
+            card.className = "card";
+            card.id = `card-${coin.id}`;
+
+            card.innerHTML = `
+              <h2>${coin.name}</h2>
+              <div class="price" id="price-${coin.id}">💵 $${coin.current_price.toFixed(2)} <span id="arrow-${coin.id}"></span></div>
+              <button onclick="showChart('${coin.id}', '${coin.name}')">📈 Graph</button>
+              <button onclick="showVolume('${coin.id}', '${coin.name}')">📊 Volume</button>
+            `;
+
+            cryptoContainer.appendChild(card);
+          });
+        } else {
+          // Update prices and arrows
+          data.forEach(coin => {
+            const prev = lastPrices.get(coin.id) || coin.current_price;
+            const current = coin.current_price;
+            const priceEl = document.getElementById(`price-${coin.id}`);
+            const arrowEl = document.getElementById(`arrow-${coin.id}`);
+
+            let arrow = "";
+            if (current > prev) {
+              arrow = `<span style="color:lightgreen">↑</span>`;
+            } else if (current < prev) {
+              arrow = `<span style="color:red">↓</span>`;
+            }
+
+            priceEl.innerHTML = `💵 $${current.toFixed(2)} ${arrow}`;
+            lastPrices.set(coin.id, current);
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching prices:", err);
+      }
     }
 
     async function showChart(id, name) {
@@ -170,27 +212,35 @@
       if (chartInstance) chartInstance.destroy();
 
       async function draw() {
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=1&interval=minute`);
-        const data = await res.json();
-        const prices = data.prices.map(p => p[1]);
-        const times = data.prices.map(p => new Date(p[0]).toLocaleTimeString());
+        try {
+          const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=0.1&interval=minute`);
+          const data = await res.json();
+          const prices = data.prices.map(p => p[1]);
+          const times = data.prices.map(p => new Date(p[0]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
 
-        chartInstance = new Chart(ctxChart, {
-          type: 'line',
-          data: {
-            labels: times,
-            datasets: [{
-              label: `${name} Price`,
-              data: prices,
-              borderColor: 'green',
-              backgroundColor: 'lightgreen',
-              fill: true
-            }]
-          },
-          options: {
-            responsive: true
-          }
-        });
+          chartInstance = new Chart(ctxChart, {
+            type: 'line',
+            data: {
+              labels: times,
+              datasets: [{
+                label: `${name} Price (USD)`,
+                data: prices,
+                borderColor: 'green',
+                backgroundColor: 'rgba(0,255,0,0.2)',
+                fill: true,
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: { beginAtZero: false }
+              }
+            }
+          });
+        } catch (err) {
+          console.error("Chart load error:", err);
+        }
       }
 
       draw();
@@ -205,30 +255,43 @@
       if (volumeInstance) volumeInstance.destroy();
 
       async function drawVolume() {
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
-        const data = await res.json();
+        try {
+          const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
+          const data = await res.json();
 
-        let buy = 0, sell = 0;
-        data.tickers.forEach(ticker => {
-          if (ticker.buy) buy += ticker.converted_volume.usd || 0;
-          else sell += ticker.converted_volume.usd || 0;
-        });
+          let mainVolume = 0;
+          let otherVolume = 0;
 
-        volumeInstance = new Chart(ctxVolume, {
-          type: 'bar',
-          data: {
-            labels: ['Buy Volume', 'Sell Volume'],
-            datasets: [{
-              label: `${name} Volume`,
-              data: [buy, sell],
-              backgroundColor: ['green', 'red']
-            }]
-          },
-          options: {
-            responsive: true,
-            indexAxis: 'y'
-          }
-        });
+          data.tickers.forEach(ticker => {
+            const volume = ticker.converted_volume?.usd || 0;
+            if (["binance", "coinbase_pro", "kraken", "bybit"].includes(ticker.market.identifier)) {
+              mainVolume += volume;
+            } else {
+              otherVolume += volume;
+            }
+          });
+
+          volumeInstance = new Chart(ctxVolume, {
+            type: 'bar',
+            data: {
+              labels: ['Main Exchanges', 'Other Exchanges'],
+              datasets: [{
+                label: `${name} Volume (USD)`,
+                data: [mainVolume, otherVolume],
+                backgroundColor: ['green', 'orange']
+              }]
+            },
+            options: {
+              responsive: true,
+              indexAxis: 'y',
+              scales: {
+                x: { beginAtZero: true }
+              }
+            }
+          });
+        } catch (err) {
+          console.error("Volume load error:", err);
+        }
       }
 
       drawVolume();
@@ -246,7 +309,7 @@
     }
 
     fetchCryptos();
-    setInterval(fetchCryptos, 10000);
+    setInterval(fetchCryptos, 4000); // Refresh prices every 4s
   </script>
 </body>
 </html>
