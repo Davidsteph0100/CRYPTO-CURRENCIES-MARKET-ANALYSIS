@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Top 100 Cryptos</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #0f1b0f;
+      color: gold;
+      overflow-x: hidden;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background-color: blue;
+      width: 0%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 9999;
+      animation: load 2s ease-in-out forwards;
+    }
+
+    @keyframes load {
+      to { width: 100%; }
+    }
+
+    h1 {
+      text-align: center;
+      padding: 1rem;
+      background-color: #145214;
+      color: gold;
+      margin: 0;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .card {
+      background: #1c361c;
+      border: 2px solid gold;
+      color: gold;
+      border-radius: 15px;
+      width: 45%;
+      max-width: 150px;
+      margin: 10px;
+      padding: 10px;
+      box-shadow: 0 0 10px green;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card h2 {
+      font-size: 16px;
+      margin: 0 0 5px;
+    }
+
+    .price {
+      font-size: 14px;
+      margin-bottom: 5px;
+    }
+
+    .card button {
+      margin-top: 5px;
+      background-color: gold;
+      color: #145214;
+      border: none;
+      padding: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+
+    .popup {
+      position: fixed;
+      top: 0;
+      left: 0;
+      background-color: #000000dd;
+      width: 100%;
+      height: 100%;
+      z-index: 1000;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      padding: 20px;
+    }
+
+    .popup canvas {
+      width: 100% !important;
+      max-width: 500px;
+      height: 300px !important;
+      background: white;
+      border-radius: 10px;
+    }
+
+    .close-btn {
+      margin-top: 10px;
+      background-color: red;
+      color: white;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    @media(min-width: 768px) {
+      .card {
+        width: 14%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress-bar"></div>
+  <h1>CRYPTO MARKET ANALYSIS</h1>
+  <div class="container" id="crypto-container"></div>
+
+  <!-- Chart popup -->
+  <div class="popup" id="chart-popup">
+    <canvas id="crypto-chart"></canvas>
+    <button class="close-btn" onclick="closePopup()">Close</button>
+  </div>
+
+  <!-- Volume popup -->
+  <div class="popup" id="volume-popup">
+    <canvas id="volume-chart"></canvas>
+    <button class="close-btn" onclick="closePopup()">Close</button>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const cryptoContainer = document.getElementById("crypto-container");
+    const chartPopup = document.getElementById("chart-popup");
+    const volumePopup = document.getElementById("volume-popup");
+    const ctxChart = document.getElementById("crypto-chart").getContext("2d");
+    const ctxVolume = document.getElementById("volume-chart").getContext("2d");
+
+    let chartInstance, volumeInstance;
+
+    async function fetchCryptos() {
+      const res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=100&page=1");
+      const data = await res.json();
+      cryptoContainer.innerHTML = "";
+
+      data.forEach(coin => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h2>${coin.name}</h2>
+          <div class="price">💵 $${coin.current_price}</div>
+          <button onclick="showChart('${coin.id}', '${coin.name}')">📈 Graph</button>
+          <button onclick="showVolume('${coin.id}', '${coin.name}')">📊 Volume</button>
+        `;
+        cryptoContainer.appendChild(card);
+      });
+    }
+
+    async function showChart(id, name) {
+      chartPopup.style.display = "flex";
+      if (chartInstance) chartInstance.destroy();
+
+      async function draw() {
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=1&interval=minute`);
+        const data = await res.json();
+        const prices = data.prices.map(p => p[1]);
+        const times = data.prices.map(p => new Date(p[0]).toLocaleTimeString());
+
+        chartInstance = new Chart(ctxChart, {
+          type: 'line',
+          data: {
+            labels: times,
+            datasets: [{
+              label: `${name} Price`,
+              data: prices,
+              borderColor: 'green',
+              backgroundColor: 'lightgreen',
+              fill: true
+            }]
+          },
+          options: {
+            responsive: true
+          }
+        });
+      }
+
+      draw();
+      chartPopup.interval = setInterval(() => {
+        if (chartInstance) chartInstance.destroy();
+        draw();
+      }, 5000);
+    }
+
+    async function showVolume(id, name) {
+      volumePopup.style.display = "flex";
+      if (volumeInstance) volumeInstance.destroy();
+
+      async function drawVolume() {
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
+        const data = await res.json();
+
+        let buy = 0, sell = 0;
+        data.tickers.forEach(ticker => {
+          if (ticker.buy) buy += ticker.converted_volume.usd || 0;
+          else sell += ticker.converted_volume.usd || 0;
+        });
+
+        volumeInstance = new Chart(ctxVolume, {
+          type: 'bar',
+          data: {
+            labels: ['Buy Volume', 'Sell Volume'],
+            datasets: [{
+              label: `${name} Volume`,
+              data: [buy, sell],
+              backgroundColor: ['green', 'red']
+            }]
+          },
+          options: {
+            responsive: true,
+            indexAxis: 'y'
+          }
+        });
+      }
+
+      drawVolume();
+      volumePopup.interval = setInterval(() => {
+        if (volumeInstance) volumeInstance.destroy();
+        drawVolume();
+      }, 3000);
+    }
+
+    function closePopup() {
+      chartPopup.style.display = "none";
+      volumePopup.style.display = "none";
+      if (chartPopup.interval) clearInterval(chartPopup.interval);
+      if (volumePopup.interval) clearInterval(volumePopup.interval);
+    }
+
+    fetchCryptos();
+    setInterval(fetchCryptos, 10000);
+  </script>
+</body>
+</html>
