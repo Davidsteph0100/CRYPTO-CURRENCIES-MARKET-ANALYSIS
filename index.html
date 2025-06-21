@@ -203,7 +203,6 @@
             const prev = lastPrices.get(coin.id) || coin.current_price;
             const current = coin.current_price;
             const priceEl = document.getElementById(`price-${coin.id}`);
-            const arrowEl = document.getElementById(`arrow-${coin.id}`);
 
             let arrow = "";
             if (current > prev) {
@@ -225,108 +224,92 @@
       chartPopup.style.display = "flex";
       if (chartInstance) chartInstance.destroy();
 
-      async function draw() {
-        document.getElementById("chart-progress").style.width = "0%";
-        document.getElementById("chart-progress").style.animation = "loadBar 1.5s linear forwards";
+      document.getElementById("chart-progress").style.width = "0%";
+      document.getElementById("chart-progress").style.animation = "loadBar 1.5s linear forwards";
 
-        try {
-          const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=0.1&interval=minute`);
-          const data = await res.json();
-          const prices = data.prices.map(p => p[1]);
-          const times = data.prices.map(p => new Date(p[0]).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+      try {
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=60&interval=daily`);
+        const data = await res.json();
+        const prices = data.prices.map(p => p[1]);
+        const times = data.prices.map(p => new Date(p[0]).toLocaleDateString());
 
-          chartInstance = new Chart(ctxChart, {
-            type: 'line',
-            data: {
-              labels: times,
-              datasets: [{
-                label: `${name} Price (USD)`,
-                data: prices,
-                borderColor: 'green',
-                backgroundColor: 'rgba(0,255,0,0.2)',
-                fill: true,
-                tension: 0.4
-              }]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: { beginAtZero: false }
-              }
+        chartInstance = new Chart(ctxChart, {
+          type: 'line',
+          data: {
+            labels: times,
+            datasets: [{
+              label: `${name} Price (USD) - Last 60 Days`,
+              data: prices,
+              borderColor: 'green',
+              backgroundColor: 'rgba(0,255,0,0.2)',
+              fill: true,
+              tension: 0.4
+            }]
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: { beginAtZero: false }
             }
-          });
+          }
+        });
 
-          setTimeout(() => {
-            document.getElementById("chart-progress").style.width = "0%";
-          }, 2000);
-        } catch (err) {
-          console.error("Chart load error:", err);
-        }
+        setTimeout(() => {
+          document.getElementById("chart-progress").style.width = "0%";
+        }, 2000);
+      } catch (err) {
+        console.error("Chart load error:", err);
       }
-
-      draw();
-      chartPopup.interval = setInterval(() => {
-        if (chartInstance) chartInstance.destroy();
-        draw();
-      }, 120000); // 2 minutes
     }
 
     async function showVolume(id, name) {
       volumePopup.style.display = "flex";
       if (volumeInstance) volumeInstance.destroy();
 
-      async function drawVolume() {
-        document.getElementById("volume-progress").style.width = "0%";
-        document.getElementById("volume-progress").style.animation = "loadBar 1.5s linear forwards";
+      document.getElementById("volume-progress").style.width = "0%";
+      document.getElementById("volume-progress").style.animation = "loadBar 1.5s linear forwards";
 
-        try {
-          const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
-          const data = await res.json();
+      try {
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
+        const data = await res.json();
 
-          let mainVolume = 0;
-          let otherVolume = 0;
+        let mainVolume = 0;
+        let otherVolume = 0;
 
-          data.tickers.forEach(ticker => {
-            const volume = ticker.converted_volume?.usd || 0;
-            if (["binance", "coinbase_pro", "kraken", "bybit"].includes(ticker.market.identifier)) {
-              mainVolume += volume;
-            } else {
-              otherVolume += volume;
+        data.tickers.forEach(ticker => {
+          const volume = ticker.converted_volume?.usd || 0;
+          if (["binance", "coinbase_pro", "kraken", "bybit"].includes(ticker.market.identifier)) {
+            mainVolume += volume;
+          } else {
+            otherVolume += volume;
+          }
+        });
+
+        volumeInstance = new Chart(ctxVolume, {
+          type: 'bar',
+          data: {
+            labels: ['Main Exchanges', 'Other Exchanges'],
+            datasets: [{
+              label: `${name} Volume (USD)`,
+              data: [mainVolume, otherVolume],
+              backgroundColor: ['green', 'orange']
+            }]
+          },
+          options: {
+            responsive: true,
+            indexAxis: 'y',
+            scales: {
+              x: { beginAtZero: true }
             }
-          });
+          }
+        });
 
-          volumeInstance = new Chart(ctxVolume, {
-            type: 'bar',
-            data: {
-              labels: ['Main Exchanges', 'Other Exchanges'],
-              datasets: [{
-                label: `${name} Volume (USD)`,
-                data: [mainVolume, otherVolume],
-                backgroundColor: ['green', 'orange']
-              }]
-            },
-            options: {
-              responsive: true,
-              indexAxis: 'y',
-              scales: {
-                x: { beginAtZero: true }
-              }
-            }
-          });
-
-          setTimeout(() => {
-            document.getElementById("volume-progress").style.width = "0%";
-          }, 2000);
-        } catch (err) {
-          console.error("Volume load error:", err);
-        }
+        setTimeout(() => {
+          document.getElementById("volume-progress").style.width = "0%";
+        }, 2000);
+      } catch (err) {
+        console.error("Volume load error:", err);
       }
-
-      drawVolume();
-      volumePopup.interval = setInterval(() => {
-        if (volumeInstance) volumeInstance.destroy();
-        drawVolume();
-      }, 120000); // 2 minutes
     }
 
     function closePopup() {
