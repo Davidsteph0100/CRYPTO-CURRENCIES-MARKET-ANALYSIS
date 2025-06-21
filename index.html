@@ -54,6 +54,24 @@
       font-size: 1.5rem;
     }
 
+    .top-bar {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      background-color: #1c361c;
+      padding: 0.5rem;
+    }
+
+    .currency-select {
+      padding: 0.4rem;
+      font-size: 1rem;
+      border-radius: 8px;
+      background-color: gold;
+      color: #145214;
+      border: none;
+      font-weight: bold;
+    }
+
     .container {
       display: flex;
       flex-wrap: wrap;
@@ -149,16 +167,31 @@
 <body>
   <div class="progress-bar"></div>
   <h1>Top 100 Cryptocurrencies</h1>
+  <div class="top-bar">
+    <select class="currency-select" id="currency-select">
+      <option value="usd">USD - US Dollar</option>
+      <option value="gbp">GBP - British Pound</option>
+      <option value="eur">EUR - Euro</option>
+      <option value="ngn">NGN - Nigerian Naira</option>
+      <option value="cny">CNY - Chinese Yuan</option>
+      <option value="jpy">JPY - Japanese Yen</option>
+      <option value="cad">CAD - Canadian Dollar</option>
+      <option value="inr">INR - Indian Rupee</option>
+      <option value="brl">BRL - Brazilian Real</option>
+      <option value="egp">EGP - Egyptian Pound</option>
+      <option value="krw">KRW - South Korean Won</option>
+      <option value="rub">RUB - Russian Ruble</option>
+      <option value="zar">ZAR - South African Rand</option>
+    </select>
+  </div>
   <div class="container" id="crypto-container"></div>
 
-  <!-- Chart popup -->
   <div class="popup" id="chart-popup">
     <div class="chart-progress-bar" id="chart-progress"></div>
     <canvas id="crypto-chart"></canvas>
     <button class="close-btn" onclick="closePopup()">Close</button>
   </div>
 
-  <!-- Volume popup -->
   <div class="popup" id="volume-popup">
     <div class="chart-progress-bar" id="volume-progress"></div>
     <canvas id="volume-chart"></canvas>
@@ -166,6 +199,15 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    const selectedFiat = localStorage.getItem("selectedCurrency") || "usd";
+    document.getElementById("currency-select").value = selectedFiat;
+
+    document.getElementById("currency-select").addEventListener("change", function () {
+      localStorage.setItem("selectedCurrency", this.value);
+      location.reload();
+    });
+  </script>
   <script>
     const cryptoContainer = document.getElementById("crypto-container");
     const chartPopup = document.getElementById("chart-popup");
@@ -178,9 +220,9 @@
 
     async function fetchCryptos() {
       try {
-        const res = await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=100&page=1");
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=${selectedFiat}&per_page=100&page=1`);
         const data = await res.json();
-        
+
         if (cryptoContainer.children.length === 0) {
           data.forEach(coin => {
             lastPrices.set(coin.id, coin.current_price);
@@ -191,7 +233,7 @@
 
             card.innerHTML = `
               <h2>${coin.name}</h2>
-              <div class="price" id="price-${coin.id}">💵 $${coin.current_price.toFixed(2)} <span id="arrow-${coin.id}"></span></div>
+              <div class="price" id="price-${coin.id}">💵 ${coin.current_price.toFixed(2)} <span id="arrow-${coin.id}"></span></div>
               <button onclick="showChart('${coin.id}', '${coin.name}')">📈 Graph</button>
               <button onclick="showVolume('${coin.id}', '${coin.name}')">📊 Volume</button>
             `;
@@ -211,7 +253,7 @@
               arrow = `<span style="color:red">↓</span>`;
             }
 
-            priceEl.innerHTML = `💵 $${current.toFixed(2)} ${arrow}`;
+            priceEl.innerHTML = `💵 ${current.toFixed(2)} ${arrow}`;
             lastPrices.set(coin.id, current);
           });
         }
@@ -228,7 +270,7 @@
       document.getElementById("chart-progress").style.animation = "loadBar 1.5s linear forwards";
 
       try {
-        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=60&interval=daily`);
+        const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=${selectedFiat}&days=30&interval=daily`);
         const data = await res.json();
         const prices = data.prices.map(p => p[1]);
         const times = data.prices.map(p => new Date(p[0]).toLocaleDateString());
@@ -238,7 +280,7 @@
           data: {
             labels: times,
             datasets: [{
-              label: `${name} Price (USD) - Last 60 Days`,
+              label: `${name} Price (${selectedFiat.toUpperCase()}) - Last 30 Days`,
               data: prices,
               borderColor: 'green',
               backgroundColor: 'rgba(0,255,0,0.2)',
@@ -277,7 +319,7 @@
         let otherVolume = 0;
 
         data.tickers.forEach(ticker => {
-          const volume = ticker.converted_volume?.usd || 0;
+          const volume = ticker.converted_volume?.[selectedFiat] || 0;
           if (["binance", "coinbase_pro", "kraken", "bybit"].includes(ticker.market.identifier)) {
             mainVolume += volume;
           } else {
@@ -290,7 +332,7 @@
           data: {
             labels: ['Main Exchanges', 'Other Exchanges'],
             datasets: [{
-              label: `${name} Volume (USD)`,
+              label: `${name} Volume (${selectedFiat.toUpperCase()})`,
               data: [mainVolume, otherVolume],
               backgroundColor: ['green', 'orange']
             }]
@@ -315,12 +357,10 @@
     function closePopup() {
       chartPopup.style.display = "none";
       volumePopup.style.display = "none";
-      if (chartPopup.interval) clearInterval(chartPopup.interval);
-      if (volumePopup.interval) clearInterval(volumePopup.interval);
     }
 
     fetchCryptos();
-    setInterval(fetchCryptos, 4000); // Price refresh every 4s
+    setInterval(fetchCryptos, 4000);
   </script>
 </body>
 </html>
