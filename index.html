@@ -31,6 +31,20 @@
       to { width: 100%; }
     }
 
+    .chart-progress-bar {
+      height: 4px;
+      background-color: blue;
+      width: 0%;
+      animation: loadBar 1.5s linear forwards;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+
+    @keyframes loadBar {
+      0% { width: 0%; }
+      100% { width: 100%; }
+    }
+
     h1 {
       text-align: center;
       padding: 1rem;
@@ -139,12 +153,14 @@
 
   <!-- Chart popup -->
   <div class="popup" id="chart-popup">
+    <div class="chart-progress-bar" id="chart-progress"></div>
     <canvas id="crypto-chart"></canvas>
     <button class="close-btn" onclick="closePopup()">Close</button>
   </div>
 
   <!-- Volume popup -->
   <div class="popup" id="volume-popup">
+    <div class="chart-progress-bar" id="volume-progress"></div>
     <canvas id="volume-chart"></canvas>
     <button class="close-btn" onclick="closePopup()">Close</button>
   </div>
@@ -166,7 +182,6 @@
         const data = await res.json();
         
         if (cryptoContainer.children.length === 0) {
-          // First load: Create cards
           data.forEach(coin => {
             lastPrices.set(coin.id, coin.current_price);
 
@@ -184,7 +199,6 @@
             cryptoContainer.appendChild(card);
           });
         } else {
-          // Update prices and arrows
           data.forEach(coin => {
             const prev = lastPrices.get(coin.id) || coin.current_price;
             const current = coin.current_price;
@@ -212,6 +226,9 @@
       if (chartInstance) chartInstance.destroy();
 
       async function draw() {
+        document.getElementById("chart-progress").style.width = "0%";
+        document.getElementById("chart-progress").style.animation = "loadBar 1.5s linear forwards";
+
         try {
           const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/market_chart?vs_currency=usd&days=0.1&interval=minute`);
           const data = await res.json();
@@ -238,6 +255,10 @@
               }
             }
           });
+
+          setTimeout(() => {
+            document.getElementById("chart-progress").style.width = "0%";
+          }, 2000);
         } catch (err) {
           console.error("Chart load error:", err);
         }
@@ -247,7 +268,7 @@
       chartPopup.interval = setInterval(() => {
         if (chartInstance) chartInstance.destroy();
         draw();
-      }, 5000);
+      }, 120000); // 2 minutes
     }
 
     async function showVolume(id, name) {
@@ -255,6 +276,9 @@
       if (volumeInstance) volumeInstance.destroy();
 
       async function drawVolume() {
+        document.getElementById("volume-progress").style.width = "0%";
+        document.getElementById("volume-progress").style.animation = "loadBar 1.5s linear forwards";
+
         try {
           const res = await fetch(`https://api.coingecko.com/api/v3/coins/${id}/tickers`);
           const data = await res.json();
@@ -289,6 +313,10 @@
               }
             }
           });
+
+          setTimeout(() => {
+            document.getElementById("volume-progress").style.width = "0%";
+          }, 2000);
         } catch (err) {
           console.error("Volume load error:", err);
         }
@@ -298,7 +326,7 @@
       volumePopup.interval = setInterval(() => {
         if (volumeInstance) volumeInstance.destroy();
         drawVolume();
-      }, 3000);
+      }, 120000); // 2 minutes
     }
 
     function closePopup() {
@@ -309,7 +337,7 @@
     }
 
     fetchCryptos();
-    setInterval(fetchCryptos, 4000); // Refresh prices every 4s
+    setInterval(fetchCryptos, 4000); // Price refresh every 4s
   </script>
 </body>
 </html>
